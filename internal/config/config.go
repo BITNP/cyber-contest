@@ -18,6 +18,11 @@ type Config struct {
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
 	DBConnMaxIdleTime time.Duration
+
+	RedisAddr      string
+	RedisPassword  string
+	RedisDB        int
+	RedisKeyPrefix string
 }
 
 func Load() *Config {
@@ -32,6 +37,11 @@ func Load() *Config {
 		DBMaxIdleConns:    getEnvInt("DB_MAX_IDLE_CONNS", 25),
 		DBConnMaxLifetime: getEnvDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),
 		DBConnMaxIdleTime: getEnvDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
+
+		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
+		RedisDB:        getEnvInt("REDIS_DB", 0),
+		RedisKeyPrefix: getEnv("REDIS_KEY_PREFIX", "ndquiz"),
 	}
 
 	tz := getEnv("TZ", "Asia/Shanghai")

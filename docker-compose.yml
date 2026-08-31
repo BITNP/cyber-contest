@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     ports:
@@ -27,14 +39,21 @@ services:
       DB_MAX_IDLE_CONNS: "200"
       DB_CONN_MAX_LIFETIME: "30m"
       DB_CONN_MAX_IDLE_TIME: "10m"
+      REDIS_ADDR: "redis:6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      REDIS_KEY_PREFIX: "ndquiz"
       PORT: "9000"
       TZ: "Asia/Shanghai"
       GIN_MODE: "release"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./config/exam.json:/app/config/exam.json:Z
 
 volumes:
   pgdata:
+  redisdata:
