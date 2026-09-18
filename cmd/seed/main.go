@@ -66,6 +66,12 @@ func main() {
 	prizeRepo := &repository.PrizeRepo{}
 
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		// The config file is the source of truth: wipe the existing rows and
+		// recreate them, so re-seeding never leaves duplicate or orphaned data.
+		if err := clearExamData(tx); err != nil {
+			return err
+		}
+
 		exam := model.Exam{
 			Title:       examCfg.Exam.Title,
 			Intro:       examCfg.Exam.Intro,
@@ -74,55 +80,13 @@ func main() {
 			LimitNumber: examCfg.Exam.LimitNumber,
 			Active:      examCfg.Exam.Active,
 		}
-
-		// Upsert exam by title
-		var existing model.Exam
-		result := tx.Where("title = ?", exam.Title).First(&existing)
-		if result.Error == nil {
-			exam.ID = existing.ID
-			exam.CreatedAt = existing.CreatedAt
-			if err := tx.Model(&existing).Updates(map[string]interface{}{
-				"title":        exam.Title,
-				"intro":        exam.Intro,
-				"limit_time":   exam.LimitTime,
-				"random":       exam.Random,
-				"limit_number": exam.LimitNumber,
-				"active":       exam.Active,
-			}).Error; err != nil {
-				return fmt.Errorf("failed to update exam: %w", err)
-			}
-		} else {
-			if err := tx.Create(&exam).Error; err != nil {
-				return fmt.Errorf("failed to create exam: %w", err)
-			}
-		}
-
-		if err := tx.Exec(`
-			DELETE FROM exam_session_problems
-			WHERE exam_session_id IN (
-				SELECT id FROM exam_sessions WHERE exam_id = ?
-			)
-		`, exam.ID).Error; err != nil {
-			return fmt.Errorf("failed to delete session-problem mappings: %w", err)
-		}
-		if err := tx.Where("exam_id = ?", exam.ID).Delete(&model.ExamSession{}).Error; err != nil {
-			return fmt.Errorf("failed to delete exam sessions: %w", err)
-		}
-
-		if err := problemRepo.DeleteByExamID(tx, exam.ID); err != nil {
-			return fmt.Errorf("failed to delete old problems: %w", err)
-		}
-		if err := prizeRepo.DeleteByExamID(tx, exam.ID); err != nil {
-			return fmt.Errorf("failed to delete old prizes: %w", err)
+		if err := tx.Create(&exam).Error; err != nil {
+			return fmt.Errorf("failed to create exam: %w", err)
 		}
 
 		problems := make([]model.Problem, len(examCfg.Problems))
 		for i, p := range examCfg.Problems {
 			dataBytes, _ := json.Marshal(p.Data)
-			active := true
-			if !p.Active {
-				active = false
-			}
 			problems[i] = model.Problem{
 				ExamID: exam.ID,
 				Type:   p.Type,
@@ -130,11 +94,13 @@ func main() {
 				Data:   string(dataBytes),
 				Answer: p.Answer,
 				Score:  p.Score,
-				Active: active,
+				Active: p.Active,
 			}
 		}
-		if err := problemRepo.BulkCreate(tx, problems); err != nil {
-			return fmt.Errorf("failed to create problems: %w", err)
+		if len(problems) > 0 {
+			if err := problemRepo.BulkCreate(tx, problems); err != nil {
+				return fmt.Errorf("failed to create problems: %w", err)
+			}
 		}
 
 		prizes := make([]model.Prize, len(examCfg.Prizes))
@@ -145,8 +111,10 @@ func main() {
 				Remain: p.Remain,
 			}
 		}
-		if err := prizeRepo.BulkCreate(tx, prizes); err != nil {
-			return fmt.Errorf("failed to create prizes: %w", err)
+		if len(prizes) > 0 {
+			if err := prizeRepo.BulkCreate(tx, prizes); err != nil {
+				return fmt.Errorf("failed to create prizes: %w", err)
+			}
 		}
 
 		fmt.Printf("seeded exam %d with %d problems and %d prizes\n", exam.ID, len(problems), len(prizes))
@@ -156,4 +124,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("seed failed: %v", err)
 	}
+}
+
+// clearExamData removes every exam, problem, prize and session row so the seed
+// can recreate them from scratch. Sessions reference exams and problems, so
+// they are cleared too to avoid dangling references.
+func clearExamData(tx *gorm.DB) error {
+	if tx.Dialector.Name() == "postgres" {
+		// RESTART IDENTITY keeps the exam id at 1, which the frontend expects
+		// (it requests /exam/info/?exam=1).
+		if err := tx.Exec(
+			"TRUNCATE TABLE exam_session_problems, exam_sessions, problems, prizes, exams RESTART IDENTITY",
+		).Error; err != nil {
+			return fmt.Errorf("failed to clear exam data: %w", err)
+		}
+		return nil
+	}
+
+	for _, table := range []string{"exam_session_problems", "exam_sessions", "problems", "prizes", "exams"} {
+		if err := tx.Exec("DELETE FROM " + table).Error; err != nil {
+			return fmt.Errorf("failed to clear %s: %w", table, err)
+		}
+	}
+	// Reset sqlite AUTOINCREMENT counters so the exam id stays 1. Ignore errors
+	// on databases that do not maintain a sqlite_sequence table.
+	tx.Exec("DELETE FROM sqlite_sequence WHERE name IN ('exams', 'problems', 'prizes', 'exam_sessions')")
+	return nil
 }

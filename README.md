@@ -16,10 +16,22 @@ then generate problem and prize into database
 docker compose run --rm app /app/seed
 ```
 
+The seed treats `config/exam.json` as the source of truth and **replaces** the
+`exams`, `problems` and `prizes` tables (and clears exam sessions), so
+re-running it always gives you exactly what is in the JSON, with no duplicate
+or orphaned rows.
+
 then run the docker container
 
 ```bash
 docker compose up -d
+```
+
+If you re-seed while the stack is already running, the `app` server keeps the
+exam data it cached at startup. Restart it to pick up the new data:
+
+```bash
+docker compose run --rm app /app/seed && docker compose restart app
 ```
 
 The backend exposed on port 9090, postgres on port 5432 as default.
