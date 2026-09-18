@@ -142,13 +142,6 @@
       margin-top: 4px;
     }
 
-    #hitokoto {
-      width: fit-content;
-      text-align: left;
-      margin: auto;
-      padding: 11px;
-    }
-
     b {
       font-weight: 900;
     }
@@ -294,7 +287,6 @@
   <div id="app">
     <div class="container">
       <h1 id="title">{{exam.title}}</h1>
-      <p>{{hitokoto}}</p>
 
       <div class="tape">
         <div class="tape-head">序 | Intro</div>
@@ -341,7 +333,6 @@
   </div>
 
   <footer>
-    Powered⚡ by <a href="https://github.com/flwfdd" target="_blank">fdd</a> with 💖.<br />
     <a href="https://www.bitnp.net" target="_blank">北京理工大学网络开拓者协会</a> 版权所有
   </footer>
 
@@ -360,7 +351,6 @@
     vm = new Vue({
       el: "#app",
       data: {
-        hitokoto: "",
         apiurl: "",
         sid: "",
         name: "",
@@ -464,18 +454,10 @@
           m -= h * 60;
           return `${h}时${m}分${s}秒`;
         },
-        UpHitokoto() {
-          axios.get("https://v1.hitokoto.cn/")
-            .then(res => {
-              this.hitokoto = res.data.hitokoto + "  ——" + res.data.from;
-            })
-        },
       },
       created() {
         document.oncontextmenu = function () { return false; };
         document.onselectstart = function () { return false; };
-        this.UpHitokoto();
-        setInterval(this.UpHitokoto, 11 * 1000);
         this.InitExam();
       }
     })
