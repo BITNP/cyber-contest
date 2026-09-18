@@ -313,6 +313,14 @@
         </div>
       </div>
 
+      <div class="tape" v-if="exam.prizes.length">
+        <div class="tape-head">奖品 | Prize</div>
+        <p class="sub">每次答题提交后即自动抽奖，中奖概率与分数正相关。奖品请于2026年9月22日 - 9月28日 19:00-22:00到网络开拓者协会办公室(北校区北理桥下左数第一个)领取。</p>
+        <ul>
+          <li v-for="(p, pind) in exam.prizes" :key="pind">{{p.text}}（剩余{{p.remain}}份）</li>
+        </ul>
+      </div>
+
       <div class="tape" v-if="exam.problems.length" :class="{no_click:result.score!=-1}">
         <div class="tape-head">题目 | Problem</div>
         <div v-for="(i,ind) in exam.problems">
@@ -362,7 +370,8 @@
           intro: "简介",
           limit_time: 233,
           log_id: 0,
-          problems: []
+          problems: [],
+          prizes: []
         },
         res_time: 0,
         interval_pool: [],
@@ -381,6 +390,7 @@
               this.exam.title = res.data.title;
               this.exam.intro = res.data.intro;
               this.exam.limit_time = res.data.limit_time;
+              this.exam.prizes = res.data.prizes || [];
             })
         },
         StartExam() {

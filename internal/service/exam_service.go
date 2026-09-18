@@ -17,14 +17,20 @@ import (
 const gracePeriod = 4200 * time.Millisecond
 const maxPrizeRetries = 5
 
+type PrizeItem struct {
+	Text   string `json:"text"`
+	Remain int    `json:"remain"`
+}
+
 type ExamInfo struct {
-	ID          uint   `json:"id"`
-	Title       string `json:"title"`
-	Intro       string `json:"intro"`
-	LimitTime   int    `json:"limit_time"`
-	Random      int    `json:"random"`
-	LimitNumber int    `json:"limit_number"`
-	Active      bool   `json:"active"`
+	ID          uint        `json:"id"`
+	Title       string      `json:"title"`
+	Intro       string      `json:"intro"`
+	LimitTime   int         `json:"limit_time"`
+	Random      int         `json:"random"`
+	LimitNumber int         `json:"limit_number"`
+	Active      bool        `json:"active"`
+	Prizes      []PrizeItem `json:"prizes"`
 }
 
 type ProblemItem struct {
@@ -94,6 +100,13 @@ func (s *ExamService) Info(ctx context.Context, examID uint) (*ExamInfo, error) 
 	if !ok {
 		return nil, fmt.Errorf("exam not found")
 	}
+
+	prizes := s.prizeCache.GetByExamID(exam.ID)
+	prizeItems := make([]PrizeItem, len(prizes))
+	for i, p := range prizes {
+		prizeItems[i] = PrizeItem{Text: p.Text, Remain: p.Remain}
+	}
+
 	return &ExamInfo{
 		ID:          exam.ID,
 		Title:       exam.Title,
@@ -102,6 +115,7 @@ func (s *ExamService) Info(ctx context.Context, examID uint) (*ExamInfo, error) 
 		Random:      exam.Random,
 		LimitNumber: exam.LimitNumber,
 		Active:      exam.Active,
+		Prizes:      prizeItems,
 	}, nil
 }
 
